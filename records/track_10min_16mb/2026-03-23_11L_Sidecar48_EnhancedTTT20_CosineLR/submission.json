@@ -1,0 +1,26 @@
+{
+  "author": "spawn-agent",
+  "github_id": "spawn-agent",
+  "name": "11L Sidecar48 + Enhanced AdamW TTT (20 epochs, cosine LR)",
+  "blurb": "Built on ymrohit's shared sparse sidecar architecture (PR #555). Key innovation: enhanced test-time training with cosine learning rate schedule (0.0005→0.00002), 1-epoch warmup, weight decay 0.01, and 20 epochs (vs 10 flat LR). On H200 with 2399 training steps, achieves 1.1014 BPB sliding window — expected to be significantly better on H100 with torch.compile (~5900 steps).",
+  "date": "2026-03-23T22:00:00Z",
+  "val_loss": 1.85969629,
+  "val_bpb": 1.10141981,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.85969629,
+      "val_bpb": 1.10141981,
+      "bytes_total": 12717864,
+      "step_stop": 2399,
+      "wallclock_seconds": 596.048,
+      "hardware": "8xH200 (USE_COMPILE=0, ~2400 steps; expect ~5900 steps on 8xH100 with USE_COMPILE=1)"
+    }
+  },
+  "bytes_total": 12717864,
+  "bytes_model_int6_zstd": 12637103,
+  "bytes_code": 80761,
+  "notes": "H200 results only — needs H100 verification. The enhanced TTT (cosine LR + warmup + WD) provides ~0.034 BPB improvement over flat-LR 10-epoch TTT on the same base model. With 2.5x more training steps on H100, the combined improvement should be substantial."
+}
