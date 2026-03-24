@@ -1,4 +1,4 @@
-"""Chimera TTT: K-projection LoRA + min-NLL epoch selection, built on DeepQuant V10b.
+"""Chimera TTT: K-projection LoRA, built on DeepQuant V10b.
 Hard stop: train_gpt.py and train_gpt_mlx.py must never be longer than 1500 lines."""
 
 from __future__ import annotations
@@ -88,13 +88,12 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 1024))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_min_doc_len = int(os.environ.get("TTT_MIN_DOC_LEN", 512))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 8))  # Chimera: 8 epochs + min-NLL scoring
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 4))
     ttt_cosine_lr = bool(int(os.environ.get("TTT_COSINE_LR", "1")))
     ttt_bias_tune = bool(int(os.environ.get("TTT_BIAS_TUNE", "1")))
     ttt_temp_rescale = float(os.environ.get("TTT_TEMP_RESCALE", 0.98))
     ttt_max_eval_secs = float(os.environ.get("TTT_MAX_EVAL_SECS", 550.0))
     ttt_k_lora = bool(int(os.environ.get("TTT_K_LORA", "1")))  # Chimera: K-projection LoRA
-    ttt_min_nll = bool(int(os.environ.get("TTT_MIN_NLL", "1")))  # Chimera: min-NLL epoch selection
 
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     a, b, c = (3.4445, -4.7750, 2.0315)
@@ -949,11 +948,6 @@ def eval_val_ttt_lora(
         doc_loss = [torch.zeros((), device=device, dtype=torch.float64) for _ in range(bsz)]
         doc_bytes = [torch.zeros((), device=device, dtype=torch.float64) for _ in range(bsz)]
         doc_toks = [0] * bsz
-        use_min_nll = args.ttt_min_nll
-        best_loss = [torch.zeros((), device=device, dtype=torch.float64) for _ in range(bsz)]
-        best_bytes = [torch.zeros((), device=device, dtype=torch.float64) for _ in range(bsz)]
-        best_toks = [0] * bsz
-        best_avg = [float('inf')] * bsz
         for epoch in range(args.ttt_epochs):
             for b in range(bsz):
                 doc_loss[b].zero_(); doc_bytes[b].zero_(); doc_toks[b] = 0
@@ -1005,18 +999,8 @@ def eval_val_ttt_lora(
                     train_loss.sum().backward()
                     cur_opt.step()
                     global_step += 1
-            if use_min_nll:
-                for b in range(bsz):
-                    if doc_toks[b] > 0:
-                        avg = doc_loss[b].item() / doc_toks[b]
-                        if avg < best_avg[b]:
-                            best_avg[b] = avg
-                            best_loss[b].copy_(doc_loss[b]); best_bytes[b].copy_(doc_bytes[b]); best_toks[b] = doc_toks[b]
         for b in range(bsz):
-            if use_min_nll and best_toks[b] > 0:
-                loss_sum += best_loss[b]; token_count += best_toks[b]; byte_sum += best_bytes[b]
-            else:
-                loss_sum += doc_loss[b]; token_count += doc_toks[b]; byte_sum += doc_bytes[b]
+            loss_sum += doc_loss[b]; token_count += doc_toks[b]; byte_sum += doc_bytes[b]
         if master and (bi + batch_size) % (batch_size * 5) == 0:
             elapsed = 1000 * (time.perf_counter() - t1)
             avg_loss = loss_sum.item() / max(token_count.item(), 1)
